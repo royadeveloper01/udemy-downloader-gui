@@ -100,3 +100,7 @@ background: rgba(0,0,0,.85);
 .ui.dashboard > .content .ui.downloads.section .ui.courses.segment{
 	padding-bottom: 30px;
 }
+
+.ui.login.authenticator i.icon.user.secret:before{
+	content:"\f21b"
+}

@@ -1,6 +1,7 @@
 const electron = require('electron');
 const remote = electron.remote;
 const dialog = remote.dialog;
+const BrowserWindow = remote.BrowserWindow;
 const fs = require('fs');
 const prompt = require('dialogs')(opts={});
 const mkdirp = require('mkdirp');
@@ -9,18 +10,53 @@ const sanitize = require("sanitize-filename");
 var Downloader = require('mt-files-downloader');
 var shell = require('electron').shell;
 var https = require('https');
+var app = require('http').createServer()
+var io = require('socket.io')(app);
 var headers;
+const $loginAuthenticator = $('.ui.login.authenticator');
+
+var awaitingLogin = false;
+
+app.listen(50490);
+
+io.on('connect',function(socket){
+
+  $loginAuthenticator.removeClass('disabled');
+
+  socket.on('disconnect',function(){
+    $loginAuthenticator.addClass('disabled');
+    $('.ui.authenticator.dimmer').removeClass('active');
+    awaitingLogin = false;
+  });
+
+  $loginAuthenticator.click(function(){
+    $('.ui.authenticator.dimmer').addClass('active');
+    awaitingLogin = true;
+    socket.emit('awaitingLogin');
+  });
+
+  socket.on('newLogin',function(data){
+    if(awaitingLogin){
+      settings.set('access_token',data.access_token);
+      settings.set('subdomain',data.subdomain);
+      checkLogin();
+    }
+  });
+});
+
 
 electron.ipcRenderer.on('saveDownloads',function(){
   saveDownloads(true);
 });
 
-var subDomain = 'www';
-var businessDomain = $('.ui.login #subdomain');
+var subDomain = settings.get('subdomain') || 'www';
+
+var $subDomain = $('.ui.login #subdomain');
 
 $('.ui.dropdown')
   .dropdown()
 ;
+
 
 $(document).ajaxError(function(event, request) {
      $(".dimmer").removeClass('active');
@@ -47,88 +83,66 @@ var downloadTemplate = `
 
 $('.ui.login #business').change(function() {
     if($(this).is(":checked")) {
-        businessDomain.show();
+      $subDomain.show();
     } else {
-        businessDomain.hide();
+      $subDomain.hide();
     }
 });
 
-if(settings.get('access_token')){
-$('.ui.login').slideUp('fast');
-$('.ui.dashboard').fadeIn('fast').css('display','flex');
-  headers = {"Authorization": `Bearer ${settings.get('access_token')}`};
-      $.ajax({
-           type: 'GET',
-           url: `https://${subDomain}.udemy.com/api-2.0/users/me/subscribed-courses?page_size=50`,
-           beforeSend: function(){
-               $(".ui.dashboard .courses.dimmer").addClass('active');
-           },
-           headers: headers,
-           success: function(response){
-              handleResponse(response);
-           },
-           error: function(response){
-              if(response.status==403){
-               settings.set('access_token',false);
-              }
-              $('.ui.login').slideDown('fast');
-              $('.ui.dashboard').fadeOut('fast');
-           }
-        });
-}
+checkLogin();
 
-$('.ui.login .form').submit((e)=>{
-e.preventDefault();
-var email = $(e.target).find('input[name="email"]').val();
-var password = $(e.target).find('input[name="password"]').val();
-var isBusiness = $(e.target).find('input[name="business"]').is(":checked");
+// $('.ui.login .form').submit((e)=>{
+// e.preventDefault();
+// var email = $(e.target).find('input[name="email"]').val();
+// var password = $(e.target).find('input[name="password"]').val();
+// var isBusiness = $(e.target).find('input[name="business"]').is(":checked");
 
-if(isBusiness){
-    subDomain = $(e.target).find('input[name="subdomain"]').val() || subDomain;
-}
+// if(isBusiness){
+//     subDomain = $(e.target).find('input[name="subdomain"]').val() || subDomain;
+// }
 
-if(!email || !password){
-   prompt.alert(translate("Type Username/Password"));
-   return;
-}
+// if(!email || !password){
+//    prompt.alert(translate("Type Username/Password"));
+//    return;
+// }
 
-$.ajax({
-   type: 'POST',
-   url:'https://www.udemy.com/api-2.0/auth/udemy-auth/login/?fields[user]=access_token',
-   data: {email:email,password:password},
-   headers: {"Authorization": "Basic YWQxMmVjYTljYmUxN2FmYWM2MjU5ZmU1ZDk4NDcxYTY6YTdjNjMwNjQ2MzA4ODI0YjIzMDFmZGI2MGVjZmQ4YTA5NDdlODJkNQ=="},
-   beforeSend: function(){
-     $(".ui.login .dimmer").addClass('active');
-   },
-    success: function(data, status, xhr){
-      if(data.access_token){
-        $('.ui.login').slideUp('fast');
-        $('.ui.dashboard').fadeIn('fast').css('display','flex');
-        settings.set('access_token',data.access_token);
-        headers = {"Authorization": `Bearer ${data.access_token}`};
-              $.ajax({
-               type: 'GET',
-               url: `https://${subDomain}.udemy.com/api-2.0/users/me/subscribed-courses?page_size=50`,
-               beforeSend: function(){
-                   $(".ui.dashboard .courses.dimmer").addClass('active');
-               },
-               headers: headers,
-               success: function(response){
-                  handleResponse(response);
-               }
-            });
-        }
-},
-  error:function(response){
-    if(response.status==400){
-      prompt.alert(translate('Incorrect Username/Password'));
-    }else{
-      prompt.alert(translate('Connection Failed'));
-    }
-  }
-});
+// $.ajax({
+//    type: 'POST',
+//    url:'https://www.udemy.com/api-2.0/auth/udemy-auth/login/?fields[user]=access_token',
+//    data: {email:email,password:password},
+//    headers: {"Authorization": "Basic YWQxMmVjYTljYmUxN2FmYWM2MjU5ZmU1ZDk4NDcxYTY6YTdjNjMwNjQ2MzA4ODI0YjIzMDFmZGI2MGVjZmQ4YTA5NDdlODJkNQ=="},
+//    beforeSend: function(){
+//      $(".ui.login .dimmer").addClass('active');
+//    },
+//     success: function(data, status, xhr){
+//       if(data.access_token){
+//         $('.ui.login').slideUp('fast');
+//         $('.ui.dashboard').fadeIn('fast').css('display','flex');
+//         settings.set('access_token',data.access_token);
+//         headers = {"Authorization": `Bearer ${data.access_token}`};
+//               $.ajax({
+//                type: 'GET',
+//                url: `https://${subDomain}.udemy.com/api-2.0/users/me/subscribed-courses?page_size=50`,
+//                beforeSend: function(){
+//                    $(".ui.dashboard .courses.dimmer").addClass('active');
+//                },
+//                headers: headers,
+//                success: function(response){
+//                   handleResponse(response);
+//                }
+//             });
+//         }
+// },
+//   error:function(response){
+//     if(response.status==400){
+//       prompt.alert(translate('Incorrect Username/Password'));
+//     }else{
+//       prompt.alert(translate('Connection Failed'));
+//     }
+//   }
+// });
 
-});
+// });
 
 
 $('.ui.dashboard .content').on('click','.download-success', function(){
@@ -203,7 +217,7 @@ $('.ui.dashboard .content').on('click','.check-updates', function(){
     if(response.tag_name!=`v${appVersion}`){
       $('.ui.update-available.modal').modal('show');
     }else{
-      prompt.alert('No updates available');
+      prompt.alert(translate("No updates available"));
     }
   });
 });
@@ -445,7 +459,7 @@ var skipSubtitles = settingsCached.download.skipSubtitles;
                error: function(error){
                 $(".ui.dashboard .course.dimmer").removeClass('active');
                 if(error.status==403){
-                  prompt.alert('You do not have permission to access this course');
+                  prompt.alert(translate("You do not have permission to access this course"));
                 }
                }
     });
@@ -830,7 +844,7 @@ if(ok){
     $('.ui.logout.dimmer').addClass('active');
     saveDownloads(false);
     settings.set('access_token',false);
-    location.reload();
+    resetToLogin();
 }
 });
 });
@@ -977,7 +991,7 @@ function handleResponse(response,keyword='') {
           `);
        });
       if(response.next){
-        $('.ui.courses.section').append('<button class="ui basic blue fluid load-more button disposable" data-url='+response.next+'>Load More</button>');
+        $('.ui.courses.section').append(`<button class="ui basic blue fluid load-more button disposable" data-url=${response.next}>${translate("Load More")}</button>`);
       }
     }else{
        $('.ui.dashboard .ui.courses.section .ui.courses.items').append(`<div class="ui yellow message disposable">${translate("No Courses Found")}</div>`);
@@ -1138,4 +1152,94 @@ function askforSubtile(availableSubs,initDownload,$course,coursedata){
       initDownload($course,coursedata,subtitle);
     }
   });
+}
+
+
+
+function loginWithUdemy(){
+  if($('.ui.login .form').find('input[name="business"]').is(":checked")){
+    if(!$subDomain.val()){
+      prompt.alert('Type Business Name');
+      return;
+    }
+  }
+  var parent = remote.getCurrentWindow();
+  var dimensions = parent.getSize();
+  var session = remote.session;
+  let udemyLoginWindow = new BrowserWindow({ width: dimensions[0]-100, height: dimensions[1]-100 , parent, modal:true})
+
+  session.defaultSession.webRequest.onBeforeSendHeaders({urls: ['*://*.udemy.com/*']}, function(request,callback){
+  if(request.requestHeaders.Authorization){
+      settings.set('access_token',request.requestHeaders.Authorization.split(' ')[1]);
+      settings.set('subdomain',new URL(request.url).hostname.split('.')[0]);
+      udemyLoginWindow.destroy();
+      session.defaultSession.clearStorageData();
+      session.defaultSession.webRequest.onBeforeSendHeaders({urls: ['*://*.udemy.com/*']},function(request,callback) {
+        callback({ requestHeaders: request.requestHeaders });  
+      });
+      checkLogin();
+    }
+    callback({ requestHeaders: request.requestHeaders })  
+  });
+  if($('.ui.login .form').find('input[name="business"]').is(":checked")&&$subDomain.val()){
+    udemyLoginWindow.loadURL(`https://${$subDomain.val()}.udemy.com`);
+  }else{
+    udemyLoginWindow.loadURL('https://www.udemy.com/join/login-popup');
+  }
+  
+}
+
+function checkLogin(){
+  if(settings.get('access_token')){
+    $('.ui.login.grid').slideUp('fast');
+    $('.ui.dashboard').fadeIn('fast').css('display','flex');
+      headers = {"Authorization": `Bearer ${settings.get('access_token')}`};
+          $.ajax({
+               type: 'GET',
+               url: `https://${settings.get('subdomain')}.udemy.com/api-2.0/users/me/subscribed-courses?page_size=50`,
+               beforeSend: function(){
+                   $(".ui.dashboard .courses.dimmer").addClass('active');
+               },
+               headers: headers,
+               success: function(response){
+                  handleResponse(response);
+               },
+               error: function(response){
+                  if(response.status==403){
+                   settings.set('access_token',false);
+                  }
+                  resetToLogin();
+               }
+            });
+    }
+}
+
+
+function loginWithAccessToken(){
+  if($('.ui.login .form').find('input[name="business"]').is(":checked")){
+    if(!$subDomain.val()){
+      prompt.alert('Type Business Name');
+      return;
+    }
+  }
+    prompt.prompt('Access Token', function(access_token) {
+      if(access_token){
+        settings.set('access_token',access_token);
+        settings.set('subdomain',$subDomain.val());
+        checkLogin();
+      }
+    });
+}
+
+
+
+function resetToLogin(){
+  $('.ui.dimmer').removeClass('active');
+  $('.ui.dashboard .courses.items').empty();
+  $('.content .ui.section').hide();
+  $('.content .ui.courses.section').show();
+  $('.sidebar').find('.active').removeClass('active red');
+  $('.sidebar').find('.courses-sidebar').addClass('active red');
+  $('.ui.login.grid').slideDown('fast');
+  $('.ui.dashboard').fadeOut('fast');
 }

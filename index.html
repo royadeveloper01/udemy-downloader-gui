@@ -50,7 +50,7 @@ function translate(text){
  }else{
     try {
       var meta = require('./locale/meta.json');
-      var locale = require('./locale/'+meta[settings.get('general.language')]);
+      var locale = require(`./locale/${meta[settings.get('general.language')]}`);
       return locale[text] || text;
     }
     catch (e) {
@@ -61,13 +61,19 @@ function translate(text){
 
 var template = `
         <div class="ui center aligned login grid">
-            <div class="ui dimmer">
+            <div class="ui login dimmer">
               <div class="ui big text loader">${translate("Logging in")}</div>
+            </div>
+
+            <div class="ui authenticator dimmer">
+              <div class="ui big text loader">
+                ${translate("Awaiting Login Request")}
+              </div>
             </div>
     
           <div class="row">
             <div class="ten wide column">
-                    <h2 class="ui center aligned icon grey login header">
+                    <h2 class="ui icon grey login header">
                       <i class="circular green user icon"></i>
                       ${translate("Udemy Login")}
                     </h2>
@@ -77,12 +83,6 @@ var template = `
           <div class="row">
               <div class="ten wide column">
                 <form class="ui form">
-                <div class="field">
-                  <input type="text" name="email" placeholder="${translate("Email")}">
-                </div>
-                <div class="field">
-                  <input type="password" name="password" placeholder="${translate("Password")}">
-                </div>
                 <div class="field">                   
                    <div class="ui fluid label checkbox">
                     <input type="checkbox" name="business" id="business">
@@ -92,8 +92,19 @@ var template = `
                 <div class="field">
                   <input type="text" id="subdomain" name="subdomain" placeholder="${translate("Udemy Business Name")}" style="display: none">
                 </div>
-                <button class="ui fluid green button" type="submit">${translate("Login")}</button>
               </form>
+              <div class="ui horizontal divider">
+                Choose Login Method
+              </div>
+              <button class="ui fluid green button" type="button" onclick="loginWithUdemy()">${translate("Login Using Credentials")}</button>
+              <div class="ui horizontal divider">
+                Or
+              </div>
+              <div class="ui fluid icon buttons">
+                <button class="ui teal login disabled authenticator button"><i class="user secret icon"></i> Authenticator</button>
+                <div class="or"></div>
+                <button class="ui blue button" onclick="loginWithAccessToken()"><i class="key icon"></i> Access Token</button>
+              </div>
               </div>
           </div>
 
@@ -110,9 +121,9 @@ var template = `
               <div class="ui big text loader">${translate("Getting Info")}</div>
             </div>
             <div class="ui about dimmer">
-              <div class="ui big text loader">Checking for Updates</div>
+              <div class="ui big text loader">${translate("Checking for Updates")}</div>
             </div>
-              <div class="ui vertical inverted sidebar labeled icon menu visible ${settings.get('general.language') == "Arabic" ? "right":"left"}">
+              <div class="ui visible fixed vertical inverted sidebar labeled icon menu ${settings.get('general.language') == "Arabic" ? "right":"left"}">
                 <a class="active red courses-sidebar item">
                   <i class="file video icon"></i>
                   ${translate("Courses")}
@@ -288,7 +299,7 @@ var template = `
                                   <i class="large github middle aligned icon"></i>
                                   <div class="content">
                                     <a class="header" href="https://github.com/FaisalUmair/udemy-downloader-gui/pulls">udemy-downloader-gui/pulls</a>
-                                    <div class="description">Contribute</div>
+                                    <div class="description">${translate("Contribute")}</div>
                                   </div>
                                 </div>
                               </div>
